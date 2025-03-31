@@ -53,6 +53,20 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			// Count the word frequency
+			while (doc_tokenizer.hasMoreTokens()) {
+				String word = doc_tokenizer.nextToken();
+				if (word_set.containsKey(word)) {
+					word_set.put(word, word_set.get(word) + 1);
+				} else {
+					word_set.put(word, 1);
+				}
+			}
+
+			// Sort the word_set
+			for (Map.Entry<String, Integer> entry : word_set.entrySet()) {
+				context.write(new Text(entry.getKey()), new IntWritable(entry.getValue()));
+			}
 		}
 	}
 
@@ -66,6 +80,12 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			// Sum the word frequency
+			for (IntWritable val : values) {
+				sum += val.get();
+			}
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -74,6 +94,9 @@ public class CORPairs extends Configured implements Tool {
 	 * TODO: Write your second-pass Mapper here.
 	 */
 	public static class CORPairsMapper2 extends Mapper<LongWritable, Text, PairOfStrings, IntWritable> {
+		private final static IntWritable ONE = new IntWritable(1);
+		private final static PairOfStrings pair = new PairOfStrings();
+
 		@Override
 		protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 			// Please use this tokenizer! DO NOT implement a tokenizer by yourself!
@@ -81,6 +104,23 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			HashSet<String> uniqueWords = new HashSet<String>();
+			// Get all unique words
+			while (doc_tokenizer.hasMoreTokens()) {
+				uniqueWords.add(doc_tokenizer.nextToken());
+			}
+			String[] words = uniqueWords.toArray(new String[0]);
+			for (int i = 0; i < words.length; i++) {
+				for (int j = i + 1; j < words.length; j++) {
+					String wordA = words[i];
+					String wordB = words[j];
+					// Sort the words
+					String first = wordA.compareTo(wordB) < 0 ? wordA : wordB;
+					String second = wordA.compareTo(wordB) < 0 ? wordB : wordA;
+					pair.set(first,second);
+					context.write(pair, ONE);
+				}
+			}
 		}
 	}
 
@@ -93,6 +133,12 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable value : values) {
+				// Sum the word frequency
+				sum += value.get();
+			}
+			context.write(key, new IntWritable(sum));
 		}
 	}
 
@@ -145,6 +191,17 @@ public class CORPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int freqAB = 0;
+			for (IntWritable value : values) {
+				freqAB += value.get();
+			}
+
+			Integer freqA = word_total_map.get(key.getLeftElement());
+			Integer freqB = word_total_map.get(key.getRightElement());
+			if (freqA != null && freqB != null && freqA > 0 && freqB > 0) {
+				double correlation = (double) freqAB / (freqA * freqB);
+				context.write(key, new DoubleWritable(correlation));
+			}
 		}
 	}
 

@@ -2,7 +2,9 @@ package hk.ust.csit5970;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -54,6 +56,21 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			if (words.length > 1){
+				KEY.set( words[0]);
+				for (int i = 1; i < words.length; i++) {
+					String w = words[i];
+					if (w.length() == 0) {
+						continue;
+					}
+					STRIPE.increment(w);
+					context.write(KEY, STRIPE);
+					STRIPE.increment("");
+					context.write(KEY, STRIPE);
+					KEY.set(w);
+					STRIPE.clear();
+				}
+			}
 		}
 	}
 
@@ -67,6 +84,8 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 		private final static HashMapStringIntWritable SUM_STRIPES = new HashMapStringIntWritable();
 		private final static PairOfStrings BIGRAM = new PairOfStrings();
 		private final static FloatWritable FREQ = new FloatWritable();
+		// Number of bigrams
+		private static int count;
 
 		@Override
 		public void reduce(Text key,
@@ -75,6 +94,35 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			Iterator<HashMapStringIntWritable> iter = stripes.iterator();
+			String first_w = key.toString();
+			while (iter.hasNext()) {
+				SUM_STRIPES.plus(iter.next());
+			}
+			for (Map.Entry<String, Integer> mapElement : SUM_STRIPES.entrySet()) {
+				String second_w = mapElement.getKey();
+				if (second_w.equals("")){
+					count = (int) mapElement.getValue();
+					BIGRAM.set(first_w, second_w);
+					FREQ.set((float)count);
+					context.write(BIGRAM, FREQ);
+				}
+				else continue;
+			}
+
+			for (Map.Entry<String, Integer> mapElement : SUM_STRIPES.entrySet()) {
+				String second_w = (String) mapElement.getKey();
+				if (second_w.equals("")){
+					continue;
+				}
+				else{
+					int value = (int) mapElement.getValue();
+					BIGRAM.set(first_w, second_w);
+					FREQ.set((float) value / ((int)2* count));
+					context.write(BIGRAM, FREQ);
+				}
+			}
+			SUM_STRIPES.clear();
 		}
 	}
 
@@ -94,6 +142,15 @@ public class BigramFrequencyStripes extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			Iterator<HashMapStringIntWritable> iter = stripes.iterator();
+
+			while (iter.hasNext()) {
+				for ( String second_w : iter.next().keySet() ) {
+					SUM_STRIPES.increment(second_w);
+				}
+			}
+			context.write(key, SUM_STRIPES);
+			SUM_STRIPES.clear();
 		}
 	}
 

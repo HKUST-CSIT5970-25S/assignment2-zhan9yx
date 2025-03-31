@@ -2,6 +2,7 @@ package hk.ust.csit5970;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -53,6 +54,20 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			if (words.length > 1){
+				String previous_word = words[0];
+				for (int i = 1; i < words.length; i++) {
+					String w = words[i];
+					if (w.length() == 0) {
+						continue;
+					}
+					BIGRAM.set(previous_word, w);
+					context.write(BIGRAM, ONE);
+					BIGRAM.set(previous_word,"");
+					context.write(BIGRAM, ONE);
+					previous_word = w;
+				}
+			}
 		}
 	}
 
@@ -64,6 +79,8 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 
 		// Reuse objects.
 		private final static FloatWritable VALUE = new FloatWritable();
+		// HashMap to store marginal counts
+		private HashMapStringIntWritable marginalCounts = new HashMapStringIntWritable();
 
 		@Override
 		public void reduce(PairOfStrings key, Iterable<IntWritable> values,
@@ -71,6 +88,32 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int count = 0;
+			Iterator<IntWritable> iter = values.iterator();
+			while (iter.hasNext()) {
+				count += iter.next().get();
+			}
+			if (key.getRightElement().equals("")) {
+				// Update marginal counts for the left element
+				marginalCounts.put(key.getLeftElement(), count);
+				int marginalCount = marginalCounts.get(key.getLeftElement());
+				VALUE.set((float)marginalCount);
+				context.write(key,VALUE);
+
+			} else {
+				// Calculate and output relative frequency for bigram
+				if (marginalCounts.containsKey(key.getLeftElement())) {
+					int marginalCount = marginalCounts.get(key.getLeftElement());
+					if (marginalCount > 0) {
+						VALUE.set((float) count / marginalCount);
+						context.write(key, VALUE);
+					}else {
+						LOG.warn("Marginal count is zero for key: " + key.getLeftElement());
+					}
+				} else {
+					LOG.warn("No marginal count found for key: " + key.getLeftElement());
+				}
+			}
 		}
 	}
 	
@@ -84,6 +127,12 @@ public class BigramFrequencyPairs extends Configured implements Tool {
 			/*
 			 * TODO: Your implementation goes here.
 			 */
+			int sum = 0;
+			for (IntWritable value : values) {
+				sum += value.get();
+			}
+			SUM.set(sum);
+			context.write(key, SUM);
 		}
 	}
 
